@@ -1,34 +1,32 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
   labels:
     {{- include "install.labels" . | nindent 4 }}
+    {{- include "install.clusterLabels" . | nindent 4 }}
 spec:
   replicas: 1
   strategy: { type: Recreate }
   selector:
     matchLabels:
-      {{- include "install.crunchyLabels" . | nindent 6 }}
+      {{- include "install.clusterLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "install.crunchyLabels" . | nindent 8 }}
+        {{- include "install.clusterLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.imagePullSecrets }}
-      imagePullSecrets:
-{{ toYaml .Values.imagePullSecrets | indent 8 }}
-      {{- end }}
+      {{- include "install.imagePullSecrets" . | indent 6 }}
+      serviceAccountName: {{ include "install.serviceAccountName" . }}
       containers:
       - name: operator
-        image: "{{ .Values.image.image }}"
+        image: {{ required ".Values.controllerImages.cluster is required" .Values.controllerImages.cluster | quote }}
         env:
         - name: CRUNCHY_DEBUG
-          value: {{ if eq .Values.debug false  }}"false"{{- else }}"true"{{- end }}
-        {{- range  $image_name, $image_val := .Values.relatedImages }}
-        - name: RELATED_IMAGE_{{ $image_name | upper }}
-          value: "{{ $image_val.image }}"
-        {{- end }}
+          value: {{ .Values.debug | ne false | quote }}
+        - name: PGO_NAMESPACE
+          valueFrom: { fieldRef: { apiVersion: v1, fieldPath: metadata.namespace } }
         {{- if .Values.singleNamespace }}
         - name: PGO_TARGET_NAMESPACE
           valueFrom: { fieldRef: { apiVersion: v1, fieldPath: metadata.namespace } }
@@ -37,7 +35,8 @@ spec:
         - name: PGO_WORKERS
           value: {{ .Values.workers | quote }}
         {{- end }}
-        {{- if (default false .Values.disable_check_for_upgrades) }}
+        {{- include "install.relatedImages" . | indent 8 }}
+        {{- if .Values.disable_check_for_upgrades }}
         - name: CHECK_FOR_UPGRADES
           value: "false"
         {{- end }}
@@ -45,4 +44,3 @@ spec:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-      serviceAccount: {{ include "install.serviceAccountName" . }}
