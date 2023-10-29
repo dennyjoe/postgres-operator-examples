@@ -1,7 +1,7 @@
 apiVersion: postgres-operator.crunchydata.com/v1beta1
 kind: PostgresCluster
 metadata:
-  name: hippo
+  name: database
 spec:
   image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi8-15.4-1
   postgresVersion: 15
@@ -12,7 +12,28 @@ spec:
         - "ReadWriteOnce"
         resources:
           requests:
-            storage: 1Gi
+            storage: 1Gi  
+  databaseInitSQL:
+    name: pgcmain-bootstrap-sql
+    key: grant-all.sql                     
+  userInterface:
+    pgAdmin:
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce   
+        resources:
+          requests:
+            storage: 1Gi            
+      service:
+        type: ClusterIP
+      replicas: 1
+      image: registry.connect.redhat.com/crunchydata/crunchy-pgadmin4            
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        pg_hba:
+          - host all all 0.0.0.0/0 trust
+          - host all postgres 127.0.0.1/32 md5
   backups:
     pgbackrest:
       image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:ubi8-2.47-1
